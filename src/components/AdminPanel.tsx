@@ -159,7 +159,7 @@ export function AdminPanel({ onClose, currentUserId }: AdminPanelProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-[#13131f] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-[#13131f] border border-white/10 rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
           <div className="w-8 h-8 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center">
@@ -213,7 +213,7 @@ export function AdminPanel({ onClose, currentUserId }: AdminPanelProps) {
               <TabBtn id="bans" icon={<BanIcon className="w-3.5 h-3.5" />} label={`Bans (${bans.length})`} />
             </div>
 
-            <div className="max-h-[60vh] overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
               <div className="flex items-center justify-between -mb-1">
                 <p className="text-white/30 text-[11px]">Tippe auf einen Nutzer für Moderationsaktionen.</p>
                 <button onClick={fetchAll} className="text-xs text-purple-400 hover:text-purple-300">Aktualisieren</button>

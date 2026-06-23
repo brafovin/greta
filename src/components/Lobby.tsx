@@ -114,7 +114,7 @@ export function Lobby({ onJoinRoom, onCreateRoom }: LobbyProps) {
   };
 
   return (
-    <div className="min-h-[calc(100vh-56px)] pb-20">
+    <div className="pb-28">
       {/* Connection status banners */}
       {!configured && (
         <div className="flex items-start gap-3 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-sm py-3 px-4">
@@ -219,7 +219,8 @@ export function Lobby({ onJoinRoom, onCreateRoom }: LobbyProps) {
       {isConnected && (
         <button
           onClick={() => setShowCreateModal(true)}
-          className="fixed bottom-6 right-6 btn-primary flex items-center gap-2 shadow-2xl shadow-purple-900/50"
+          className="fixed right-6 btn-primary flex items-center gap-2 shadow-2xl shadow-purple-900/50"
+          style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
         >
           <Plus className="w-5 h-5" />
           <span>Create Room</span>

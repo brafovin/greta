@@ -48,9 +48,12 @@ export function AuthModal({ onClose, onSignIn, onSignUp }: AuthModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm bg-[#13131f] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div
+        className="relative w-full max-w-sm bg-[#13131f] border border-white/10 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden animate-slide-up"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <h2 className="font-bold text-white text-sm">

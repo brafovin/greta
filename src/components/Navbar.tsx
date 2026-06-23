@@ -44,7 +44,11 @@ export function Navbar({ onSetUsername, onSignIn, onSignUp, onSignOut }: NavbarP
 
   return (
     <>
-      <nav className="h-14 flex items-center px-4 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-lg sticky top-0 z-40">
+      <nav
+        className="flex-shrink-0 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-lg sticky top-0 z-40"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+      <div className="h-14 flex items-center px-4">
         <div className="flex items-center gap-2 flex-1">
           <div className="flex items-center gap-1.5">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center">
@@ -154,6 +158,7 @@ export function Navbar({ onSetUsername, onSignIn, onSignUp, onSignOut }: NavbarP
             )}
           </div>
         </div>
+      </div>
       </nav>
 
       {showAdmin && (

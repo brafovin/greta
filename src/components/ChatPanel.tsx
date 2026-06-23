@@ -113,6 +113,7 @@ export function ChatPanel({
               className={clsx('group animate-fade-in', showAvatar ? 'mt-3' : 'mt-0.5')}
               onMouseEnter={() => setHoveredMessage(msg.id)}
               onMouseLeave={() => setHoveredMessage(null)}
+              onClick={() => setHoveredMessage(prev => prev === msg.id ? null : msg.id)}
             >
               <div className={clsx('flex gap-2.5', isMe ? 'flex-row-reverse' : 'flex-row')}>
                 {showAvatar ? (
@@ -183,7 +184,7 @@ export function ChatPanel({
 
                 {hoveredMessage === msg.id && !isEditing && (
                   <div className={clsx(
-                    'self-center flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity',
+                    'self-center flex gap-0.5',
                     isMe ? 'mr-1' : 'ml-1',
                   )}>
                     {QUICK_REACTIONS.map(emoji => (

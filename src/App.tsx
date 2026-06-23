@@ -50,7 +50,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="flex flex-col h-dvh bg-[#0a0a0f]">
       <Navbar
         onSetUsername={supabase.setUsername}
         onSignIn={supabase.signInWithEmail}
@@ -76,7 +76,9 @@ export default function App() {
           listenToSignals={supabase.listenToSignals}
         />
       ) : (
-        <Lobby onJoinRoom={supabase.joinRoom} onCreateRoom={handleCreateRoom} />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <Lobby onJoinRoom={supabase.joinRoom} onCreateRoom={handleCreateRoom} />
+        </div>
       )}
     </div>
   );

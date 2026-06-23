@@ -32,7 +32,7 @@ export function ModerationMenu({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xs bg-[#13131f] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-xs bg-[#13131f] border border-white/10 rounded-2xl shadow-2xl overflow-y-auto max-h-[90dvh]">
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-white/10">
           <div

@@ -157,7 +157,7 @@ export function Room({
   if (!currentRoom) return null;
 
   return (
-    <div className="h-[calc(100vh-56px)] flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col">
       {/* Room header */}
       <div className="flex items-center gap-4 px-4 py-3 border-b border-white/5 bg-[#0d0d15]">
         <div className="flex-1 min-w-0">
@@ -250,7 +250,10 @@ export function Room({
       </div>
 
       {/* Bottom controls */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-white/5 bg-[#0d0d15]">
+      <div
+        className="flex items-center justify-between px-4 pt-3 border-t border-white/5 bg-[#0d0d15]"
+        style={{ paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}
+      >
         <button
           onClick={handleToggleMute}
           className={clsx(

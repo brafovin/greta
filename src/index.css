@@ -5,6 +5,7 @@
 @layer base {
   * {
     box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -12,6 +13,18 @@
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: none;
+  }
+
+  button, [role="button"], a, label {
+    touch-action: manipulation;
+  }
+
+  /* Prevent iOS Safari auto-zoom on input focus (font-size must be >= 16px) */
+  @supports (-webkit-touch-callout: none) {
+    input, textarea, select {
+      font-size: 16px;
+    }
   }
 
   ::-webkit-scrollbar {
@@ -45,11 +58,15 @@
     @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500
            text-white font-semibold rounded-xl px-5 py-2.5 transition-all duration-200
            active:scale-95 shadow-lg shadow-purple-900/30;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 
   .btn-ghost {
     @apply bg-white/5 hover:bg-white/10 text-white/80 hover:text-white
            font-medium rounded-xl px-4 py-2 transition-all duration-200 active:scale-95;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 
   .input-field {
@@ -61,6 +78,16 @@
   .speaking-ring {
     animation: speaking-pulse 0.8s ease-in-out infinite;
     box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.7);
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -76,6 +103,24 @@
   100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
 }
 
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .speaking-glow {
   animation: green-pulse 1s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.2s ease-out forwards;
 }
