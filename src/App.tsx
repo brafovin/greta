@@ -20,8 +20,8 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0a0f]">
       <Navbar
         onSetUsername={supabase.setUsername}
-        onSignInGoogle={supabase.signInWithGoogle}
-        onSignInApple={supabase.signInWithApple}
+        onSignIn={supabase.signInWithEmail}
+        onSignUp={supabase.signUpWithEmail}
         onSignOut={supabase.signOut}
       />
 
@@ -30,6 +30,8 @@ export default function App() {
           onLeave={supabase.leaveRoom}
           onSendMessage={supabase.sendMessage}
           onReaction={supabase.sendReaction}
+          onEditMessage={supabase.editMessage}
+          onDeleteMessage={supabase.deleteMessage}
           onToggleMute={supabase.toggleMute}
           onSpeaking={supabase.setSpeaking}
           onWebRTCOffer={supabase.sendWebRTCOffer}

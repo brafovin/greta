@@ -163,22 +163,24 @@ export function useSupabase() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithEmail = useCallback(async (email: string, password: string): Promise<{ error?: string }> => {
     const supabase = getSupabase();
-    if (!supabase) return;
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
+    if (!supabase) return { error: 'Supabase nicht konfiguriert' };
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return error ? { error: error.message } : {};
   }, []);
 
-  const signInWithApple = useCallback(async () => {
+  const signUpWithEmail = useCallback(async (email: string, password: string): Promise<{ error?: string; needsConfirmation?: boolean }> => {
     const supabase = getSupabase();
-    if (!supabase) return;
-    await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: { redirectTo: window.location.origin },
+    if (!supabase) return { error: 'Supabase nicht konfiguriert' };
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { emailRedirectTo: window.location.origin },
     });
+    if (error) return { error: error.message };
+    // If email confirmation is required, there is a user but no active session
+    const needsConfirmation = !!data.user && !data.session;
+    return { needsConfirmation };
   }, []);
 
   const signOut = useCallback(async () => {
@@ -310,6 +312,11 @@ export function useSupabase() {
         filter: `room_id=eq.${roomId}` }, (payload) => {
         store.updateMessage(toMessage(payload.new as DbMessage));
       })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages',
+        filter: `room_id=eq.${roomId}` }, (payload) => {
+        const id = (payload.old as { id?: string }).id;
+        if (id) store.removeMessage(id);
+      })
       // ── WebRTC signaling ─────────────────────────────────────────────────
       .on('broadcast', { event: 'webrtc' }, ({ payload }) => {
         const { type, fromId, toId, data } = payload as {
@@ -376,6 +383,21 @@ export function useSupabase() {
       username: usernameRef.current, avatar: avatarRef.current, text, reactions: {},
     });
   }, []);
+
+  // Admin moderation: edit / delete any chat message
+  const editMessage = useCallback(async (messageId: string, text: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('messages').update({ text }).eq('id', messageId);
+    store.updateMessage({ ...useAppStore.getState().messages.find(m => m.id === messageId)!, text });
+  }, [store]);
+
+  const deleteMessage = useCallback(async (messageId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('messages').delete().eq('id', messageId);
+    store.removeMessage(messageId);
+  }, [store]);
 
   const sendReaction = useCallback(async (messageId: string, emoji: string) => {
     const supabase = getSupabase();
@@ -453,9 +475,10 @@ export function useSupabase() {
   }, []);
 
   return {
-    signInWithGoogle, signInWithApple, signOut,
+    signInWithEmail, signUpWithEmail, signOut,
     setUsername, createRoom, joinRoom, leaveRoom,
-    sendMessage, sendReaction, toggleMute, setSpeaking,
+    sendMessage, sendReaction, editMessage, deleteMessage,
+    toggleMute, setSpeaking,
     sendWebRTCOffer, sendWebRTCAnswer, sendIceCandidate, listenToSignals,
   };
 }

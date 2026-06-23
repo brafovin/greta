@@ -63,6 +63,7 @@ CREATE POLICY "participants_delete" ON public.participants FOR DELETE USING (tru
 CREATE POLICY "messages_select"     ON public.messages     FOR SELECT USING (true);
 CREATE POLICY "messages_insert"     ON public.messages     FOR INSERT WITH CHECK (true);
 CREATE POLICY "messages_update"     ON public.messages     FOR UPDATE USING (true);
+CREATE POLICY "messages_delete"     ON public.messages     FOR DELETE USING (true);
 
 -- ── Stale participant cleanup ─────────────────────────────────────────────────
 -- Participants stop sending heartbeats when they close the tab without leaving.

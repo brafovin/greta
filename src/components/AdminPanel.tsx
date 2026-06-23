@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Trash2, MicOff, Mic, Shield, Eye } from 'lucide-react';
+import { X, Trash2, MicOff, Mic, Shield, Eye, LogOut } from 'lucide-react';
 import { getSupabase } from '../supabase';
+import { useAppStore } from '../store/useAppStore';
 import { Room, Participant, RoomCategory } from '../types';
 import clsx from 'clsx';
 
@@ -34,7 +35,8 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ onClose, currentUserId }: AdminPanelProps) {
-  const [unlocked, setUnlocked] = useState(false);
+  const { isAdmin, setIsAdmin } = useAppStore();
+  const unlocked = isAdmin;
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -72,12 +74,17 @@ export function AdminPanel({ onClose, currentUserId }: AdminPanelProps) {
 
   const handleUnlock = () => {
     if (password === ADMIN_PASSWORD) {
-      setUnlocked(true);
+      setIsAdmin(true);
       setError(false);
     } else {
       setError(true);
       setPassword('');
     }
+  };
+
+  const handleLockAdmin = () => {
+    setIsAdmin(false);
+    onClose();
   };
 
   const handleDeleteRoom = async (roomId: string) => {
@@ -163,10 +170,23 @@ export function AdminPanel({ onClose, currentUserId }: AdminPanelProps) {
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-white/50 text-xs">{rooms.length} Räume gesamt</p>
-                <button onClick={fetchAllRooms} className="text-xs text-purple-400 hover:text-purple-300">
-                  Aktualisieren
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={fetchAllRooms} className="text-xs text-purple-400 hover:text-purple-300">
+                    Aktualisieren
+                  </button>
+                  <button
+                    onClick={handleLockAdmin}
+                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                    title="Admin-Modus verlassen"
+                  >
+                    <LogOut className="w-3 h-3" />
+                    Admin verlassen
+                  </button>
+                </div>
               </div>
+              <p className="text-white/30 text-[11px] -mt-1 mb-1">
+                Als Admin kannst du in jedem Raum Chat-Nachrichten bearbeiten und löschen.
+              </p>
 
               {loading && (
                 <div className="text-center py-8 text-white/30 text-sm">Lade Räume…</div>

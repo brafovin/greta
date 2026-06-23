@@ -11,6 +11,8 @@ interface RoomProps {
   onLeave: () => void;
   onSendMessage: (text: string) => void;
   onReaction: (messageId: string, emoji: string) => void;
+  onEditMessage: (messageId: string, text: string) => void;
+  onDeleteMessage: (messageId: string) => void;
   onToggleMute: (muted: boolean) => void;
   onSpeaking: (isSpeaking: boolean) => void;
   onWebRTCOffer: (targetId: string, offer: RTCSessionDescriptionInit) => void;
@@ -33,6 +35,8 @@ export function Room({
   onLeave,
   onSendMessage,
   onReaction,
+  onEditMessage,
+  onDeleteMessage,
   onToggleMute,
   onSpeaking,
   onWebRTCOffer,
@@ -40,7 +44,7 @@ export function Room({
   onIceCandidate,
   listenToSignals,
 }: RoomProps) {
-  const { currentRoom, messages, userId, isMuted, setMuted, updateParticipant, hasAudioPermission } = useAppStore();
+  const { currentRoom, messages, userId, isMuted, setMuted, updateParticipant, hasAudioPermission, isAdmin } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('voice');
   const [copied, setCopied] = useState(false);
   const streamInitialized = useRef(false);
@@ -223,8 +227,11 @@ export function Room({
           <ChatPanel
             messages={messages}
             currentUserId={userId}
+            isAdmin={isAdmin}
             onSendMessage={onSendMessage}
             onReaction={onReaction}
+            onEditMessage={onEditMessage}
+            onDeleteMessage={onDeleteMessage}
           />
         </div>
       </div>
