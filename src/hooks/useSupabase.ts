@@ -1,18 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel, Session } from '@supabase/supabase-js';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
 import { useAppStore } from '../store/useAppStore';
 import { Room, Message, Participant, RoomCategory } from '../types';
 
-const ADJECTIVES = ['Happy', 'Brave', 'Cool', 'Wild', 'Calm', 'Swift', 'Bold', 'Wise', 'Zesty', 'Lively'];
-const NOUNS = ['Fox', 'Bear', 'Wolf', 'Hawk', 'Star', 'Moon', 'Wave', 'Flame', 'Storm', 'River'];
 const AVATAR_COLORS = ['#7c3aed', '#db2777', '#0891b2', '#059669', '#d97706', '#dc2626'];
-
-function randomUsername() {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  return `${adj}${noun}${Math.floor(Math.random() * 999)}`;
-}
 function randomAvatar() {
   return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 }
@@ -32,46 +24,33 @@ type DbMessage = {
 };
 
 function toParticipant(p: DbParticipant): Participant {
-  return {
-    id: p.user_id,
-    username: p.username,
-    avatar: p.avatar,
-    isMuted: p.is_muted,
-    isSpeaking: p.is_speaking,
-    joinedAt: p.joined_at,
-  };
+  return { id: p.user_id, username: p.username, avatar: p.avatar,
+    isMuted: p.is_muted, isSpeaking: p.is_speaking, joinedAt: p.joined_at };
 }
-
 function toRoom(r: DbRoom, participants: Participant[]): Room {
-  return {
-    id: r.id,
-    name: r.name,
-    description: r.description ?? '',
-    category: r.category as RoomCategory,
-    hostId: r.host_id,
-    hostUsername: r.host_username,
-    participants,
-    participantCount: participants.length,
-    maxParticipants: r.max_participants,
-    isPrivate: r.is_private,
-    createdAt: r.created_at,
-    tags: r.tags ?? [],
-  };
+  return { id: r.id, name: r.name, description: r.description ?? '',
+    category: r.category as Room['category'], hostId: r.host_id,
+    hostUsername: r.host_username, participants, participantCount: participants.length,
+    maxParticipants: r.max_participants, isPrivate: r.is_private,
+    createdAt: r.created_at, tags: r.tags ?? [] };
+}
+function toMessage(m: DbMessage): Message {
+  const reactions = m.reactions && !Array.isArray(m.reactions)
+    ? Object.values(m.reactions) : [];
+  return { id: m.id, userId: m.user_id, username: m.username, avatar: m.avatar,
+    text: m.text, timestamp: m.created_at, reactions: reactions as Message['reactions'] };
 }
 
-function toMessage(m: DbMessage): Message {
-  const reactions = m.reactions && typeof m.reactions === 'object' && !Array.isArray(m.reactions)
-    ? Object.values(m.reactions)
-    : [];
-  return {
-    id: m.id,
-    userId: m.user_id,
-    username: m.username,
-    avatar: m.avatar,
-    text: m.text,
-    timestamp: m.created_at,
-    reactions: reactions as Message['reactions'],
-  };
+function nameFromSession(session: Session): string {
+  const meta = session.user.user_metadata ?? {};
+  const stored = localStorage.getItem('funflow_username');
+  if (stored) return stored;
+  const name = meta.full_name ?? meta.name
+    ?? (meta.firstName ? `${meta.firstName} ${meta.lastName ?? ''}`.trim() : null)
+    ?? session.user.email?.split('@')[0]
+    ?? 'User';
+  if (name !== 'User') localStorage.setItem('funflow_username', name);
+  return name;
 }
 
 export function useSupabase() {
@@ -93,19 +72,13 @@ export function useSupabase() {
   async function fetchRooms() {
     const supabase = getSupabase();
     if (!supabase) return;
-
-    const { data: roomsData, error } = await supabase
-      .from('rooms')
-      .select('*')
-      .eq('is_private', false)
+    const { data: roomsData } = await supabase
+      .from('rooms').select('*').eq('is_private', false)
       .order('created_at', { ascending: false });
-
-    if (error || !roomsData) { store.setRooms([]); return; }
+    if (!roomsData) { store.setRooms([]); return; }
 
     const { data: participantsData } = await supabase
-      .from('participants')
-      .select('*')
-      .in('room_id', roomsData.map(r => r.id));
+      .from('participants').select('*').in('room_id', roomsData.map(r => r.id));
 
     const byRoom = new Map<string, Participant[]>();
     (participantsData ?? []).forEach((p: DbParticipant) => {
@@ -113,20 +86,50 @@ export function useSupabase() {
       list.push(toParticipant(p));
       byRoom.set(p.room_id, list);
     });
-
-    const rooms = roomsData.map((r: DbRoom) => toRoom(r, byRoom.get(r.id) ?? []));
-    store.setRooms(rooms);
+    store.setRooms(roomsData.map((r: DbRoom) => toRoom(r, byRoom.get(r.id) ?? [])));
     store.setIsConnected(true);
   }
 
-  useEffect(() => {
-    let userId = localStorage.getItem('funflow_userId');
-    let username = localStorage.getItem('funflow_username');
-    let avatar = localStorage.getItem('funflow_avatar');
+  function setupLobbyChannel() {
+    const supabase = getSupabase();
+    if (!supabase || lobbyChannelRef.current) return;
+    const ch = supabase.channel('lobby-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, fetchRooms)
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') store.setIsConnected(true);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') store.setIsConnected(false);
+      });
+    lobbyChannelRef.current = ch;
+  }
 
-    if (!userId) { userId = crypto.randomUUID(); localStorage.setItem('funflow_userId', userId); }
-    if (!username) { username = randomUsername(); localStorage.setItem('funflow_username', username); }
-    if (!avatar) { avatar = randomAvatar(); localStorage.setItem('funflow_avatar', avatar); }
+  function teardownLobbyChannel() {
+    const supabase = getSupabase();
+    if (lobbyChannelRef.current && supabase) {
+      supabase.removeChannel(lobbyChannelRef.current);
+      lobbyChannelRef.current = null;
+    }
+  }
+
+  async function handleSession(session: Session | null) {
+    const supabase = getSupabase()!;
+    if (!session) {
+      store.setIsAuthenticated(false);
+      store.setIsConnected(false);
+      teardownLobbyChannel();
+      return;
+    }
+
+    const userId = session.user.id;
+    const username = nameFromSession(session);
+    const avatar = localStorage.getItem('funflow_avatar') ?? randomAvatar();
+    if (!localStorage.getItem('funflow_avatar')) localStorage.setItem('funflow_avatar', avatar);
+
+    // Persist display name in Supabase auth metadata for future sessions
+    const storedMeta = session.user.user_metadata?.display_name;
+    if (!storedMeta && username !== 'User') {
+      supabase.auth.updateUser({ data: { display_name: username } }).catch(() => {});
+    }
 
     userIdRef.current = userId;
     usernameRef.current = username;
@@ -134,35 +137,58 @@ export function useSupabase() {
     store.setUserId(userId);
     store.setUsername(username);
     store.setAvatar(avatar);
+    store.setIsAuthenticated(true);
 
+    await fetchRooms();
+    setupLobbyChannel();
+  }
+
+  useEffect(() => {
     if (!isSupabaseConfigured()) {
       store.setIsConnected(false);
+      store.setIsAuthenticated(false);
       return;
     }
-
-    fetchRooms();
-
     const supabase = getSupabase()!;
-    const ch = supabase
-      .channel('lobby-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, fetchRooms)
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') store.setIsConnected(true);
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') store.setIsConnected(false);
-      });
 
-    lobbyChannelRef.current = ch;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
 
     return () => {
-      supabase.removeChannel(ch);
+      subscription.unsubscribe();
+      teardownLobbyChannel();
     };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const signInWithApple = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: { redirectTo: window.location.origin },
+    });
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    // Leave current room first
+    if (currentRoomIdRef.current) await leaveRoom();
+    await supabase.auth.signOut();
+    store.setIsAuthenticated(false);
+    store.setIsConnected(false);
+    store.setRooms([]);
+    teardownLobbyChannel();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setUsername = useCallback((username: string) => {
     localStorage.setItem('funflow_username', username);
     usernameRef.current = username;
     store.setUsername(username);
+    getSupabase()?.auth.updateUser({ data: { display_name: username } }).catch(() => {});
   }, [store]);
 
   const createRoom = useCallback(async (data: {
@@ -172,20 +198,13 @@ export function useSupabase() {
     const supabase = getSupabase();
     if (!supabase || !userIdRef.current) return;
 
-    const { data: room, error } = await supabase
-      .from('rooms')
-      .insert({
-        name: data.name,
-        description: data.description || '',
-        category: data.category,
-        host_id: userIdRef.current,
-        host_username: usernameRef.current,
-        max_participants: data.maxParticipants ?? 20,
-        is_private: data.isPrivate ?? false,
-        tags: data.tags ?? [],
-      })
-      .select()
-      .single();
+    const { data: room, error } = await supabase.from('rooms').insert({
+      name: data.name, description: data.description || '',
+      category: data.category, host_id: userIdRef.current,
+      host_username: usernameRef.current,
+      max_participants: data.maxParticipants ?? 20,
+      is_private: data.isPrivate ?? false, tags: data.tags ?? [],
+    }).select().single();
 
     if (error || !room) { console.error('createRoom failed', error); return; }
     await joinRoom(room.id);
@@ -198,18 +217,17 @@ export function useSupabase() {
     currentRoomIdRef.current = roomId;
     store.setMessages([]);
 
-    // Register participant
+    // Clean stale participants from all rooms on join
+    const cutoff = new Date(Date.now() - 90_000).toISOString();
+    supabase.from('participants').delete().lt('last_heartbeat', cutoff).then(() => {});
+
     await supabase.from('participants').upsert({
-      room_id: roomId,
-      user_id: userIdRef.current,
-      username: usernameRef.current,
-      avatar: avatarRef.current,
-      is_muted: false,
-      is_speaking: false,
+      room_id: roomId, user_id: userIdRef.current,
+      username: usernameRef.current, avatar: avatarRef.current,
+      is_muted: false, is_speaking: false,
       last_heartbeat: new Date().toISOString(),
     });
 
-    // Fetch initial state
     const [{ data: roomData }, { data: participantsData }, { data: messagesData }] = await Promise.all([
       supabase.from('rooms').select('*').eq('id', roomId).single(),
       supabase.from('participants').select('*').eq('room_id', roomId),
@@ -218,36 +236,33 @@ export function useSupabase() {
     ]);
 
     if (roomData) {
-      store.setCurrentRoom(toRoom(roomData as DbRoom, (participantsData ?? []).map((p: DbParticipant) => toParticipant(p))));
+      store.setCurrentRoom(toRoom(roomData as DbRoom,
+        (participantsData ?? []).map((p: DbParticipant) => toParticipant(p))));
     }
     (messagesData ?? []).forEach((m: DbMessage) => store.addMessage(toMessage(m)));
 
-    // Room realtime channel: participant changes + new messages + WebRTC broadcast
-    const ch = supabase
-      .channel(`room:${roomId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'participants',
-        filter: `room_id=eq.${roomId}`,
-      }, async () => {
+    const ch = supabase.channel(`room:${roomId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants',
+        filter: `room_id=eq.${roomId}` }, async () => {
         const [{ data: rData }, { data: pData }] = await Promise.all([
           supabase.from('rooms').select('*').eq('id', roomId).single(),
           supabase.from('participants').select('*').eq('room_id', roomId),
         ]);
         if (rData) {
-          store.setCurrentRoom(toRoom(rData as DbRoom, (pData ?? []).map((p: DbParticipant) => toParticipant(p))));
+          store.setCurrentRoom(toRoom(rData as DbRoom,
+            (pData ?? []).map((p: DbParticipant) => toParticipant(p))));
+        } else {
+          store.setCurrentRoom(null);
+          store.setMessages([]);
         }
       })
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'messages',
-        filter: `room_id=eq.${roomId}`,
-      }, (payload) => {
-        store.updateMessage(toMessage(payload.new as DbMessage));
-      })
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'messages',
-        filter: `room_id=eq.${roomId}`,
-      }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages',
+        filter: `room_id=eq.${roomId}` }, (payload) => {
         store.addMessage(toMessage(payload.new as DbMessage));
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages',
+        filter: `room_id=eq.${roomId}` }, (payload) => {
+        store.updateMessage(toMessage(payload.new as DbMessage));
       })
       .on('broadcast', { event: 'webrtc' }, ({ payload }) => {
         const { type, fromId, toId, data } = payload as {
@@ -264,14 +279,11 @@ export function useSupabase() {
 
     roomChannelRef.current = ch;
 
-    // Heartbeat keeps participant alive (cleaned up server-side if stale)
     heartbeatRef.current = setInterval(async () => {
       if (!currentRoomIdRef.current || !userIdRef.current) return;
-      await supabase
-        .from('participants')
+      await supabase.from('participants')
         .update({ last_heartbeat: new Date().toISOString() })
-        .eq('room_id', currentRoomIdRef.current)
-        .eq('user_id', userIdRef.current);
+        .eq('room_id', currentRoomIdRef.current).eq('user_id', userIdRef.current);
     }, 30_000);
   }, [store]);
 
@@ -281,7 +293,6 @@ export function useSupabase() {
     const userId = userIdRef.current;
 
     if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
-
     if (roomChannelRef.current && supabase) {
       supabase.removeChannel(roomChannelRef.current);
       roomChannelRef.current = null;
@@ -290,10 +301,8 @@ export function useSupabase() {
     if (supabase && userId && roomId) {
       await supabase.from('participants').delete()
         .eq('room_id', roomId).eq('user_id', userId);
-
       const { data: remaining } = await supabase
         .from('participants').select('user_id').eq('room_id', roomId);
-
       if (!remaining || remaining.length === 0) {
         await supabase.from('messages').delete().eq('room_id', roomId);
         await supabase.from('rooms').delete().eq('id', roomId);
@@ -310,35 +319,27 @@ export function useSupabase() {
     const supabase = getSupabase();
     const roomId = currentRoomIdRef.current;
     if (!supabase || !roomId || !userIdRef.current) return;
-
     await supabase.from('messages').insert({
-      room_id: roomId,
-      user_id: userIdRef.current,
-      username: usernameRef.current,
-      avatar: avatarRef.current,
-      text,
-      reactions: {},
+      room_id: roomId, user_id: userIdRef.current,
+      username: usernameRef.current, avatar: avatarRef.current, text, reactions: {},
     });
   }, []);
 
   const sendReaction = useCallback(async (messageId: string, emoji: string) => {
     const supabase = getSupabase();
     if (!supabase || !userIdRef.current) return;
-
     const { data: msg } = await supabase
       .from('messages').select('reactions').eq('id', messageId).single();
     if (!msg) return;
-
-    type ReactionEntry = { emoji: string; count: number; userIds: string[] };
-    const reactions = (msg.reactions as Record<string, ReactionEntry>) ?? {};
-    const existing: ReactionEntry = reactions[emoji] ?? { emoji, count: 0, userIds: [] };
-
+    type R = { emoji: string; count: number; userIds: string[] };
+    const reactions = (msg.reactions as Record<string, R>) ?? {};
+    const existing: R = reactions[emoji] ?? { emoji, count: 0, userIds: [] };
     if (!existing.userIds.includes(userIdRef.current)) {
       await supabase.from('messages').update({
-        reactions: {
-          ...reactions,
-          [emoji]: { ...existing, count: existing.count + 1, userIds: [...existing.userIds, userIdRef.current] },
-        },
+        reactions: { ...reactions, [emoji]: {
+          ...existing, count: existing.count + 1,
+          userIds: [...existing.userIds, userIdRef.current],
+        }},
       }).eq('id', messageId);
     }
   }, []);
@@ -347,8 +348,7 @@ export function useSupabase() {
     const supabase = getSupabase();
     const roomId = currentRoomIdRef.current;
     if (!supabase || !roomId || !userIdRef.current) return;
-    await supabase.from('participants')
-      .update({ is_muted: isMuted })
+    await supabase.from('participants').update({ is_muted: isMuted })
       .eq('room_id', roomId).eq('user_id', userIdRef.current);
   }, []);
 
@@ -358,8 +358,7 @@ export function useSupabase() {
     const supabase = getSupabase();
     const roomId = currentRoomIdRef.current;
     if (!supabase || !roomId || !userIdRef.current) return;
-    await supabase.from('participants')
-      .update({ is_speaking: isSpeaking })
+    await supabase.from('participants').update({ is_speaking: isSpeaking })
       .eq('room_id', roomId).eq('user_id', userIdRef.current);
   }, []);
 
@@ -385,8 +384,7 @@ export function useSupabase() {
   }, []);
 
   const listenToSignals = useCallback((
-    _roomId: string,
-    _userId: string,
+    _roomId: string, _userId: string,
     callbacks: {
       onOffer: (fromId: string, offer: RTCSessionDescriptionInit) => void;
       onAnswer: (fromId: string, answer: RTCSessionDescriptionInit) => void;
@@ -398,8 +396,9 @@ export function useSupabase() {
   }, []);
 
   return {
+    signInWithApple, signOut, setUsername,
     joinRoom, leaveRoom, createRoom, sendMessage, sendReaction,
-    toggleMute, setSpeaking, setUsername,
+    toggleMute, setSpeaking,
     sendWebRTCOffer, sendWebRTCAnswer, sendIceCandidate, listenToSignals,
   };
 }

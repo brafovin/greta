@@ -12,12 +12,14 @@ interface AppState {
   hasAudioPermission: boolean | null;
   isConnected: boolean;
   isConnecting: boolean;
+  isAuthenticated: boolean;
 
-  setUserId: (id: string) => void;
+  setUserId: (id: string | null) => void;
   setUsername: (name: string) => void;
   setAvatar: (avatar: string) => void;
   setIsConnected: (val: boolean) => void;
   setIsConnecting: (val: boolean) => void;
+  setIsAuthenticated: (val: boolean) => void;
   setCurrentRoom: (room: Room | null) => void;
   setRooms: (rooms: Room[]) => void;
   updateRoom: (room: Room) => void;
@@ -42,12 +44,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   hasAudioPermission: null,
   isConnected: false,
   isConnecting: true,
+  isAuthenticated: false,
 
   setUserId: (id) => set({ userId: id }),
   setUsername: (name) => set({ username: name }),
   setAvatar: (avatar) => set({ avatar }),
   setIsConnected: (val) => set({ isConnected: val, isConnecting: false }),
   setIsConnecting: (val) => set({ isConnecting: val }),
+  setIsAuthenticated: (val) => set({ isAuthenticated: val }),
   setCurrentRoom: (room) => set({ currentRoom: room }),
   setRooms: (rooms) => set({ rooms }),
 

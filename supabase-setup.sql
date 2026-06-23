@@ -84,3 +84,20 @@ BEGIN
       AND created_at < NOW() - INTERVAL '1 minute';
 END;
 $$;
+
+-- Allow anon/authenticated users to call cleanup (triggered client-side on join)
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_data() TO anon;
+GRANT EXECUTE ON FUNCTION public.cleanup_stale_data() TO authenticated;
+
+-- ── Apple Sign In (Supabase Auth) ─────────────────────────────────────────────
+-- In Supabase Dashboard → Authentication → Providers → Apple:
+-- 1. Enable Apple provider
+-- 2. Enter your Apple Services ID (Client ID) and private key
+-- 3. Add your Vercel domain to "Redirect URLs":
+--    https://<your-app>.vercel.app
+--
+-- In Apple Developer:
+-- 1. Create an App ID with "Sign In with Apple" capability
+-- 2. Create a Services ID with the same domain + redirect URL
+-- 3. Create a private key for Sign In with Apple → download the .p8 file
+-- 4. Enter Client ID, Team ID, Key ID, and private key content in Supabase

@@ -92,6 +92,15 @@ export function Room({
     });
   }, [currentRoom?.id, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // React to admin-forced mute: sync our WebRTC mute state when DB changes
+  const selfMuted = currentRoom?.participants.find(p => p.id === userId)?.isMuted;
+  useEffect(() => {
+    if (selfMuted === undefined || selfMuted === isMuted) return;
+    setMuted(selfMuted);
+    webRTC.toggleMute(selfMuted);
+    onToggleMute(selfMuted);
+  }, [selfMuted]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Detect new / left participants and update WebRTC accordingly
   const participantsKey = currentRoom?.participants.map(p => p.id).sort().join(',') ?? '';
   useEffect(() => {
