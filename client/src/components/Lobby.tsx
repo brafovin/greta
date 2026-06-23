@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Users, Search, TrendingUp } from 'lucide-react';
+import { Plus, Users, Search, TrendingUp, WifiOff, Loader2 } from 'lucide-react';
 import { Room, RoomCategory, CATEGORY_LABELS, CATEGORY_COLORS } from '../types';
 import { CreateRoomModal } from './CreateRoomModal';
+import { useAppStore } from '../store/useAppStore';
 import clsx from 'clsx';
 
 interface LobbyProps {
@@ -107,6 +108,7 @@ export function Lobby({ rooms, onJoinRoom, onCreateRoom }: LobbyProps) {
   const [selectedCategory, setSelectedCategory] = useState<RoomCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const { isConnected, isConnecting } = useAppStore();
 
   const filtered = rooms.filter(room => {
     const matchesCategory = selectedCategory === 'all' || room.category === selectedCategory;
@@ -122,6 +124,19 @@ export function Lobby({ rooms, onJoinRoom, onCreateRoom }: LobbyProps) {
 
   return (
     <div className="min-h-[calc(100vh-56px)] pb-20">
+      {/* Connection status banner */}
+      {isConnecting && (
+        <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400 text-sm py-2 px-4">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Connecting to server…</span>
+        </div>
+      )}
+      {!isConnecting && !isConnected && (
+        <div className="flex items-center justify-center gap-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm py-2 px-4">
+          <WifiOff className="w-4 h-4" />
+          <span>No server connection — set <code className="bg-white/10 px-1 rounded">VITE_SERVER_URL</code> in your Vercel environment variables to connect a backend.</span>
+        </div>
+      )}
       {/* Hero */}
       <div className="px-6 py-12 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 via-transparent to-transparent pointer-events-none" />

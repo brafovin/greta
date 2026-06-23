@@ -10,8 +10,12 @@ interface AppState {
   messages: Message[];
   isMuted: boolean;
   hasAudioPermission: boolean | null;
+  isConnected: boolean;
+  isConnecting: boolean;
 
   setUserId: (id: string) => void;
+  setIsConnected: (val: boolean) => void;
+  setIsConnecting: (val: boolean) => void;
   setUsername: (name: string) => void;
   setAvatar: (avatar: string) => void;
   setCurrentRoom: (room: Room | null) => void;
@@ -36,8 +40,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: [],
   isMuted: false,
   hasAudioPermission: null,
+  isConnected: false,
+  isConnecting: true,
 
   setUserId: (id) => set({ userId: id }),
+  setIsConnected: (val) => set({ isConnected: val, isConnecting: false }),
+  setIsConnecting: (val) => set({ isConnecting: val }),
   setUsername: (name) => set({ username: name }),
   setAvatar: (avatar) => set({ avatar }),
   setCurrentRoom: (room) => set({ currentRoom: room }),

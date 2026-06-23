@@ -12,6 +12,8 @@ function getSocket(): Socket {
     socketInstance = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnectionAttempts: 5,
+      timeout: 8000,
     });
   }
   return socketInstance;
@@ -77,6 +79,10 @@ export function useSocket() {
   useEffect(() => {
     const socket = socketRef.current;
 
+    socket.on('connect', () => store.setIsConnected(true));
+    socket.on('disconnect', () => store.setIsConnected(false));
+    socket.on('connect_error', () => store.setIsConnected(false));
+
     socket.on('init', (data: { userId: string; username: string; avatar: string }) => {
       store.setUserId(data.userId);
       store.setUsername(data.username);
@@ -130,6 +136,9 @@ export function useSocket() {
     });
 
     return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
       socket.off('init');
       socket.off('username-set');
       socket.off('room-list');
