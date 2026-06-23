@@ -5,9 +5,11 @@ import { UserCard } from './UserCard';
 interface VoicePanelProps {
   participants: Participant[];
   currentUserId: string | null;
+  isAdmin?: boolean;
+  onModerate?: (participant: Participant) => void;
 }
 
-export function VoicePanel({ participants, currentUserId }: VoicePanelProps) {
+export function VoicePanel({ participants, currentUserId, isAdmin, onModerate }: VoicePanelProps) {
   if (participants.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -29,6 +31,8 @@ export function VoicePanel({ participants, currentUserId }: VoicePanelProps) {
             participant={p}
             isCurrentUser={p.id === currentUserId}
             size="lg"
+            isAdmin={isAdmin}
+            onModerate={onModerate}
           />
         ))}
       </div>

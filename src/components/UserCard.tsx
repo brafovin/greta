@@ -6,6 +6,8 @@ interface UserCardProps {
   participant: Participant;
   isCurrentUser?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  isAdmin?: boolean;
+  onModerate?: (participant: Participant) => void;
 }
 
 function getInitials(username: string): string {
@@ -28,16 +30,22 @@ function getGradient(username: string): string {
   return AVATAR_GRADIENTS[idx];
 }
 
-export function UserCard({ participant, isCurrentUser = false, size = 'md' }: UserCardProps) {
+export function UserCard({ participant, isCurrentUser = false, size = 'md', isAdmin = false, onModerate }: UserCardProps) {
   const avatarSizes = { sm: 'w-12 h-12 text-sm', md: 'w-16 h-16 text-base', lg: 'w-24 h-24 text-xl' };
   const textSizes = { sm: 'text-xs', md: 'text-sm', lg: 'text-base' };
+  const canModerate = isAdmin && !isCurrentUser && !!onModerate;
 
   return (
-    <div className={clsx(
-      'flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-200',
-      size === 'lg' ? 'gap-3 p-4' : '',
-      participant.isSpeaking ? 'bg-green-500/5' : 'bg-white/3 hover:bg-white/5',
-    )}>
+    <div
+      onClick={canModerate ? () => onModerate!(participant) : undefined}
+      className={clsx(
+        'flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-200',
+        size === 'lg' ? 'gap-3 p-4' : '',
+        participant.isSpeaking ? 'bg-green-500/5' : 'bg-white/3 hover:bg-white/5',
+        canModerate && 'cursor-pointer ring-1 ring-transparent hover:ring-red-500/40',
+      )}
+      title={canModerate ? 'Moderieren' : undefined}
+    >
       <div className="relative">
         <div className={clsx(
           'rounded-full flex items-center justify-center font-bold text-white bg-gradient-to-br select-none',

@@ -7,6 +7,18 @@ export interface Participant {
   isMuted: boolean;
   isSpeaking: boolean;
   joinedAt: Date | string;
+  accountType?: 'guest' | 'email';
+  roomId?: string;
+  roomName?: string;
+}
+
+export interface Ban {
+  userId: string;
+  username: string;
+  reason: string;
+  bannedBy: string;
+  bannedAt: Date | string;
+  expiresAt: Date | string | null; // null = permanent
 }
 
 export interface MessageReaction {

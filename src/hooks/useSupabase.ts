@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase, isSupabaseConfigured } from '../supabase';
 import { useAppStore } from '../store/useAppStore';
-import { Room, Message, Participant, RoomCategory } from '../types';
+import { Room, Message, Participant, RoomCategory, Ban } from '../types';
 
 const ADJECTIVES = ['Happy', 'Brave', 'Cool', 'Wild', 'Calm', 'Swift', 'Bold', 'Wise', 'Zesty', 'Lively'];
 const NOUNS = ['Fox', 'Bear', 'Wolf', 'Hawk', 'Star', 'Moon', 'Wave', 'Flame', 'Storm', 'River'];
@@ -20,6 +20,11 @@ function randomAvatar() {
 type DbParticipant = {
   room_id: string; user_id: string; username: string; avatar: string;
   is_muted: boolean; is_speaking: boolean; joined_at: string;
+  account_type?: string;
+};
+type DbBan = {
+  user_id: string; username: string; reason: string;
+  banned_by: string; banned_at: string; expires_at: string | null;
 };
 type DbRoom = {
   id: string; name: string; description: string; category: string;
@@ -37,7 +42,18 @@ type PresencePayload = {
 
 function toParticipant(p: DbParticipant): Participant {
   return { id: p.user_id, username: p.username, avatar: p.avatar,
-    isMuted: p.is_muted, isSpeaking: p.is_speaking, joinedAt: p.joined_at };
+    isMuted: p.is_muted, isSpeaking: p.is_speaking, joinedAt: p.joined_at,
+    accountType: (p.account_type as 'guest' | 'email') ?? 'guest' };
+}
+function toBan(b: DbBan): Ban {
+  return { userId: b.user_id, username: b.username, reason: b.reason,
+    bannedBy: b.banned_by, bannedAt: b.banned_at, expiresAt: b.expires_at };
+}
+// Returns active ban (not expired) for a user, or null
+function activeBan(b: DbBan | null | undefined): DbBan | null {
+  if (!b) return null;
+  if (b.expires_at && new Date(b.expires_at).getTime() <= Date.now()) return null;
+  return b;
 }
 function toRoom(r: DbRoom, participants: Participant[]): Room {
   return { id: r.id, name: r.name, description: r.description ?? '',
@@ -87,6 +103,24 @@ export function useSupabase() {
     });
     store.setRooms(roomsData.map((r: DbRoom) => toRoom(r, byRoom.get(r.id) ?? [])));
     store.setIsConnected(true);
+  }
+
+  // Check whether the current user is banned; update store + kick from room if so.
+  async function checkMyBan(): Promise<boolean> {
+    const supabase = getSupabase();
+    if (!supabase || !userIdRef.current) return false;
+    const { data } = await supabase
+      .from('bans').select('*').eq('user_id', userIdRef.current).maybeSingle();
+    const ban = activeBan(data as DbBan | null);
+    if (ban) {
+      store.setMyBan({ until: ban.expires_at, reason: ban.reason });
+      if (currentRoomIdRef.current) await leaveRoom();
+      return true;
+    }
+    // Clean up an expired ban row so it doesn't linger
+    if (data && !ban) supabase.from('bans').delete().eq('user_id', userIdRef.current).then(() => {});
+    store.setMyBan(null);
+    return false;
   }
 
   // Apply a guest identity (random, stored in localStorage)
@@ -147,10 +181,12 @@ export function useSupabase() {
     });
 
     fetchRooms();
+    checkMyBan();
 
     const ch = supabase.channel('lobby-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, fetchRooms)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bans' }, () => checkMyBan())
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') store.setIsConnected(true);
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') store.setIsConnected(false);
@@ -222,6 +258,9 @@ export function useSupabase() {
     const supabase = getSupabase();
     if (!supabase || !userIdRef.current) return;
 
+    // Banned users cannot join
+    if (await checkMyBan()) return;
+
     currentRoomIdRef.current = roomId;
     store.setMessages([]);
 
@@ -234,6 +273,7 @@ export function useSupabase() {
       room_id: roomId, user_id: userIdRef.current,
       username: usernameRef.current, avatar: avatarRef.current,
       is_muted: false, is_speaking: false,
+      account_type: useAppStore.getState().isAuthenticated ? 'email' : 'guest',
       last_heartbeat: new Date().toISOString(),
     });
 
@@ -399,6 +439,69 @@ export function useSupabase() {
     store.removeMessage(messageId);
   }, [store]);
 
+  // ── Admin moderation: mute / kick / ban / timeout ────────────────────────────
+
+  // Mute / unmute a user across every room they're in
+  const muteUser = useCallback(async (targetUserId: string, muted: boolean) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('participants').update({ is_muted: muted }).eq('user_id', targetUserId);
+  }, []);
+
+  // Remove a user from all rooms (kick)
+  const kickUser = useCallback(async (targetUserId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('participants').delete().eq('user_id', targetUserId);
+  }, []);
+
+  // Ban (durationMinutes omitted/0 = permanent) or timeout, then kick
+  const banUser = useCallback(async (targetUserId: string, username: string, durationMinutes?: number, reason = '') => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const expires_at = durationMinutes && durationMinutes > 0
+      ? new Date(Date.now() + durationMinutes * 60_000).toISOString()
+      : null;
+    await supabase.from('bans').upsert({
+      user_id: targetUserId, username, reason,
+      banned_by: usernameRef.current, banned_at: new Date().toISOString(), expires_at,
+    });
+    await supabase.from('participants').delete().eq('user_id', targetUserId);
+  }, []);
+
+  const unbanUser = useCallback(async (targetUserId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.from('bans').delete().eq('user_id', targetUserId);
+  }, []);
+
+  // All currently-active bans (expired ones filtered out)
+  const fetchBans = useCallback(async (): Promise<Ban[]> => {
+    const supabase = getSupabase();
+    if (!supabase) return [];
+    const { data } = await supabase.from('bans').select('*').order('banned_at', { ascending: false });
+    return (data ?? [])
+      .filter((b: DbBan) => activeBan(b))
+      .map((b: DbBan) => toBan(b));
+  }, []);
+
+  // Every user currently present in any room (for the admin "users" view)
+  const fetchAllUsers = useCallback(async (): Promise<Participant[]> => {
+    const supabase = getSupabase();
+    if (!supabase) return [];
+    const [{ data: parts }, { data: roomsData }] = await Promise.all([
+      supabase.from('participants').select('*'),
+      supabase.from('rooms').select('id,name'),
+    ]);
+    const roomNames = new Map<string, string>((roomsData ?? []).map((r: { id: string; name: string }) => [r.id, r.name]));
+    const seen = new Map<string, Participant>();
+    (parts ?? []).forEach((p: DbParticipant) => {
+      const part = { ...toParticipant(p), roomId: p.room_id, roomName: roomNames.get(p.room_id) ?? '—' };
+      seen.set(p.user_id, part); // last room wins; one entry per user
+    });
+    return Array.from(seen.values());
+  }, []);
+
   const sendReaction = useCallback(async (messageId: string, emoji: string) => {
     const supabase = getSupabase();
     if (!supabase || !userIdRef.current) return;
@@ -479,6 +582,7 @@ export function useSupabase() {
     setUsername, createRoom, joinRoom, leaveRoom,
     sendMessage, sendReaction, editMessage, deleteMessage,
     toggleMute, setSpeaking,
+    muteUser, kickUser, banUser, unbanUser, fetchBans, fetchAllUsers,
     sendWebRTCOffer, sendWebRTCAnswer, sendIceCandidate, listenToSignals,
   };
 }

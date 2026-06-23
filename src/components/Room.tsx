@@ -4,7 +4,8 @@ import { useAppStore } from '../store/useAppStore';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { VoicePanel } from './VoicePanel';
 import { ChatPanel } from './ChatPanel';
-import { CATEGORY_LABELS, CATEGORY_COLORS } from '../types';
+import { ModerationMenu } from './ModerationMenu';
+import { CATEGORY_LABELS, CATEGORY_COLORS, Participant } from '../types';
 import clsx from 'clsx';
 
 interface RoomProps {
@@ -13,6 +14,9 @@ interface RoomProps {
   onReaction: (messageId: string, emoji: string) => void;
   onEditMessage: (messageId: string, text: string) => void;
   onDeleteMessage: (messageId: string) => void;
+  onMuteUser: (userId: string, muted: boolean) => void;
+  onKickUser: (userId: string) => void;
+  onBanUser: (userId: string, username: string, minutes?: number) => void;
   onToggleMute: (muted: boolean) => void;
   onSpeaking: (isSpeaking: boolean) => void;
   onWebRTCOffer: (targetId: string, offer: RTCSessionDescriptionInit) => void;
@@ -37,6 +41,9 @@ export function Room({
   onReaction,
   onEditMessage,
   onDeleteMessage,
+  onMuteUser,
+  onKickUser,
+  onBanUser,
   onToggleMute,
   onSpeaking,
   onWebRTCOffer,
@@ -47,6 +54,7 @@ export function Room({
   const { currentRoom, messages, userId, isMuted, setMuted, updateParticipant, hasAudioPermission, isAdmin } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('voice');
   const [copied, setCopied] = useState(false);
+  const [moderating, setModerating] = useState<Participant | null>(null);
   const streamInitialized = useRef(false);
   const prevParticipantsRef = useRef<Set<string>>(new Set());
 
@@ -216,7 +224,12 @@ export function Room({
           activeTab === 'voice' ? 'flex' : 'hidden md:flex',
           'md:flex-1',
         )}>
-          <VoicePanel participants={currentRoom.participants} currentUserId={userId} />
+          <VoicePanel
+            participants={currentRoom.participants}
+            currentUserId={userId}
+            isAdmin={isAdmin}
+            onModerate={setModerating}
+          />
         </div>
 
         <div className={clsx(
@@ -259,6 +272,17 @@ export function Room({
           <span className="hidden sm:inline">Leave Room</span>
         </button>
       </div>
+
+      {moderating && (
+        <ModerationMenu
+          participant={moderating}
+          onClose={() => setModerating(null)}
+          onMute={(muted) => onMuteUser(moderating.id, muted)}
+          onKick={() => onKickUser(moderating.id)}
+          onTimeout={(minutes) => onBanUser(moderating.id, moderating.username, minutes)}
+          onBan={() => onBanUser(moderating.id, moderating.username)}
+        />
+      )}
     </div>
   );
 }

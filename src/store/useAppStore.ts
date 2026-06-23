@@ -14,8 +14,10 @@ interface AppState {
   hasAudioPermission: boolean | null;
   isConnected: boolean;
   isConnecting: boolean;
+  myBan: { until: string | null; reason: string } | null;
 
   setUserId: (id: string | null) => void;
+  setMyBan: (ban: { until: string | null; reason: string } | null) => void;
   setUsername: (name: string) => void;
   setAvatar: (avatar: string) => void;
   setIsAuthenticated: (val: boolean) => void;
@@ -49,8 +51,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   hasAudioPermission: null,
   isConnected: false,
   isConnecting: true,
+  myBan: null,
 
   setUserId: (id) => set({ userId: id }),
+  setMyBan: (ban) => set({ myBan: ban }),
   setUsername: (name) => set({ username: name }),
   setAvatar: (avatar) => set({ avatar }),
   setIsAuthenticated: (val) => set({ isAuthenticated: val }),

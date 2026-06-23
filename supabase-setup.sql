@@ -23,9 +23,23 @@ CREATE TABLE IF NOT EXISTS public.participants (
   avatar         TEXT        NOT NULL DEFAULT '#7c3aed',
   is_muted       BOOLEAN     NOT NULL DEFAULT FALSE,
   is_speaking    BOOLEAN     NOT NULL DEFAULT FALSE,
+  account_type   TEXT        NOT NULL DEFAULT 'guest',
   joined_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_heartbeat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (room_id, user_id)
+);
+
+-- If upgrading an existing project, add the new column:
+ALTER TABLE public.participants ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'guest';
+
+-- Bans / timeouts. expires_at NULL = permanent ban; otherwise it's a timeout.
+CREATE TABLE IF NOT EXISTS public.bans (
+  user_id    TEXT        PRIMARY KEY,
+  username   TEXT        NOT NULL DEFAULT '',
+  reason     TEXT        NOT NULL DEFAULT '',
+  banned_by  TEXT        NOT NULL DEFAULT '',
+  banned_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS public.messages (
@@ -44,12 +58,14 @@ CREATE TABLE IF NOT EXISTS public.messages (
 ALTER PUBLICATION supabase_realtime ADD TABLE public.rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.participants;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.bans;
 
 -- ── Row Level Security ────────────────────────────────────────────────────────
 
 ALTER TABLE public.rooms        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bans         ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "rooms_select"        ON public.rooms        FOR SELECT USING (true);
 CREATE POLICY "rooms_insert"        ON public.rooms        FOR INSERT WITH CHECK (true);
@@ -64,6 +80,11 @@ CREATE POLICY "messages_select"     ON public.messages     FOR SELECT USING (tru
 CREATE POLICY "messages_insert"     ON public.messages     FOR INSERT WITH CHECK (true);
 CREATE POLICY "messages_update"     ON public.messages     FOR UPDATE USING (true);
 CREATE POLICY "messages_delete"     ON public.messages     FOR DELETE USING (true);
+
+CREATE POLICY "bans_select"         ON public.bans         FOR SELECT USING (true);
+CREATE POLICY "bans_insert"         ON public.bans         FOR INSERT WITH CHECK (true);
+CREATE POLICY "bans_update"         ON public.bans         FOR UPDATE USING (true);
+CREATE POLICY "bans_delete"         ON public.bans         FOR DELETE USING (true);
 
 -- ── Stale participant cleanup ─────────────────────────────────────────────────
 -- Participants stop sending heartbeats when they close the tab without leaving.
