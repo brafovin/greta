@@ -5,6 +5,7 @@ interface AppState {
   userId: string | null;
   username: string;
   avatar: string;
+  isAuthenticated: boolean;
   currentRoom: Room | null;
   rooms: Room[];
   messages: Message[];
@@ -16,6 +17,7 @@ interface AppState {
   setUserId: (id: string | null) => void;
   setUsername: (name: string) => void;
   setAvatar: (avatar: string) => void;
+  setIsAuthenticated: (val: boolean) => void;
   setIsConnected: (val: boolean) => void;
   setIsConnecting: (val: boolean) => void;
   setCurrentRoom: (room: Room | null) => void;
@@ -35,6 +37,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userId: null,
   username: '',
   avatar: '#7c3aed',
+  isAuthenticated: false,
   currentRoom: null,
   rooms: [],
   messages: [],
@@ -46,6 +49,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setUserId: (id) => set({ userId: id }),
   setUsername: (name) => set({ username: name }),
   setAvatar: (avatar) => set({ avatar }),
+  setIsAuthenticated: (val) => set({ isAuthenticated: val }),
   setIsConnected: (val) => set({ isConnected: val, isConnecting: false }),
   setIsConnecting: (val) => set({ isConnecting: val }),
   setCurrentRoom: (room) => set({ currentRoom: room }),

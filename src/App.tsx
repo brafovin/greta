@@ -18,7 +18,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
-      <Navbar onSetUsername={supabase.setUsername} />
+      <Navbar
+        onSetUsername={supabase.setUsername}
+        onSignInGoogle={supabase.signInWithGoogle}
+        onSignInApple={supabase.signInWithApple}
+        onSignOut={supabase.signOut}
+      />
 
       {currentRoom ? (
         <Room

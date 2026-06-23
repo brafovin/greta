@@ -89,8 +89,8 @@ export function useSupabase() {
     store.setIsConnected(true);
   }
 
-  useEffect(() => {
-    // Restore or generate identity
+  // Apply a guest identity (random, stored in localStorage)
+  function applyGuestIdentity() {
     let userId = localStorage.getItem('funflow_userId');
     let username = localStorage.getItem('funflow_username');
     let avatar = localStorage.getItem('funflow_avatar');
@@ -104,15 +104,50 @@ export function useSupabase() {
     store.setUserId(userId);
     store.setUsername(username);
     store.setAvatar(avatar);
+    store.setIsAuthenticated(false);
+  }
+
+  // Apply identity from a signed-in Google/Apple session
+  function applyAuthIdentity(session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) {
+    const meta = session.user.user_metadata ?? {};
+    const customName = localStorage.getItem('funflow_custom_username');
+    const providerName = (meta.full_name ?? meta.name ?? meta.user_name
+      ?? session.user.email?.split('@')[0] ?? 'User') as string;
+    const username = customName || providerName;
+    let avatar = localStorage.getItem('funflow_avatar');
+    if (!avatar) { avatar = randomAvatar(); localStorage.setItem('funflow_avatar', avatar); }
+
+    userIdRef.current = session.user.id;
+    usernameRef.current = username;
+    avatarRef.current = avatar;
+    store.setUserId(session.user.id);
+    store.setUsername(username);
+    store.setAvatar(avatar);
+    store.setIsAuthenticated(true);
+  }
+
+  useEffect(() => {
+    // Start as guest so the app is usable immediately
+    applyGuestIdentity();
 
     if (!isSupabaseConfigured()) {
       store.setIsConnected(false);
       return;
     }
 
+    const supabase = getSupabase()!;
+
+    // Upgrade to authenticated identity if a Google/Apple session exists
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) applyAuthIdentity(session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) applyAuthIdentity(session);
+      else if (event === 'SIGNED_OUT') applyGuestIdentity();
+    });
+
     fetchRooms();
 
-    const supabase = getSupabase()!;
     const ch = supabase.channel('lobby-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, fetchRooms)
@@ -122,13 +157,46 @@ export function useSupabase() {
       });
     lobbyChannelRef.current = ch;
 
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(ch);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const signInWithGoogle = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+  }, []);
+
+  const signInWithApple = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: { redirectTo: window.location.origin },
+    });
+  }, []);
+
+  const signOut = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    localStorage.removeItem('funflow_custom_username');
+    await supabase.auth.signOut();
+    applyGuestIdentity();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setUsername = useCallback((username: string) => {
-    localStorage.setItem('funflow_username', username);
     usernameRef.current = username;
     store.setUsername(username);
+    if (useAppStore.getState().isAuthenticated) {
+      localStorage.setItem('funflow_custom_username', username);
+    } else {
+      localStorage.setItem('funflow_username', username);
+    }
   }, [store]);
 
   const createRoom = useCallback(async (data: {
@@ -385,6 +453,7 @@ export function useSupabase() {
   }, []);
 
   return {
+    signInWithGoogle, signInWithApple, signOut,
     setUsername, createRoom, joinRoom, leaveRoom,
     sendMessage, sendReaction, toggleMute, setSpeaking,
     sendWebRTCOffer, sendWebRTCAnswer, sendIceCandidate, listenToSignals,
