@@ -3,7 +3,7 @@ import { Plus, Users, Search, TrendingUp, WifiOff, Loader2, Settings } from 'luc
 import { Room, RoomCategory, CATEGORY_LABELS, CATEGORY_COLORS } from '../types';
 import { CreateRoomModal } from './CreateRoomModal';
 import { useAppStore } from '../store/useAppStore';
-import { isFirebaseConfigured } from '../firebase';
+import { isSupabaseConfigured } from '../supabase';
 import clsx from 'clsx';
 
 interface LobbyProps {
@@ -99,7 +99,7 @@ export function Lobby({ onJoinRoom, onCreateRoom }: LobbyProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const { rooms, isConnected, isConnecting } = useAppStore();
-  const configured = isFirebaseConfigured();
+  const configured = isSupabaseConfigured();
 
   const filtered = rooms.filter(room => {
     const matchesCategory = selectedCategory === 'all' || room.category === selectedCategory;
@@ -120,28 +120,20 @@ export function Lobby({ onJoinRoom, onCreateRoom }: LobbyProps) {
         <div className="flex items-start gap-3 bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-sm py-3 px-4">
           <Settings className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <span>
-            <strong>Firebase not configured.</strong> Add your Firebase env vars to Vercel to enable real-time rooms and voice chat.{' '}
-            <a
-              href="https://console.firebase.google.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-amber-200"
-            >
-              Create a free Firebase project →
-            </a>
+            <strong>Supabase not configured.</strong> Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your Vercel environment variables to enable real-time rooms and voice chat.
           </span>
         </div>
       )}
       {configured && isConnecting && (
         <div className="flex items-center justify-center gap-2 bg-yellow-500/10 border-b border-yellow-500/20 text-yellow-400 text-sm py-2 px-4">
           <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Connecting to Firebase…</span>
+          <span>Connecting to Supabase…</span>
         </div>
       )}
       {configured && !isConnecting && !isConnected && (
         <div className="flex items-center justify-center gap-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-sm py-2 px-4">
           <WifiOff className="w-4 h-4" />
-          <span>Connection lost. Check your Firebase configuration.</span>
+          <span>Connection lost. Check your Supabase configuration.</span>
         </div>
       )}
 
